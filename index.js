@@ -1,31 +1,45 @@
 import express from "express";
-import { ApolloServer } from "apollo-server-express";
-import mongoose from "mongoose";
+import http from "http";
 import dotenv from "dotenv";
+import mongoose from "mongoose";
+import { ApolloServer } from "apollo-server-express";
+import { makeExecutableSchema } from "@graphql-tools/schema";
+import { WebSocketServer } from "ws";
+import { useServer } from "graphql-ws/lib/use/ws";
+
 import { typeDefs } from "./schema/typeDefs.js";
 import { resolvers } from "./schema/resolvers.js";
 
 dotenv.config();
 const app = express();
+const PORT = process.env.PORT || 4000;
 
-const server = new ApolloServer({
-  typeDefs,
-  resolvers,
+// Create HTTP server
+const httpServer = http.createServer(app);
+
+// Create schema with subscriptions
+const schema = makeExecutableSchema({ typeDefs, resolvers });
+
+// WebSocket server for Subscriptions
+const wsServer = new WebSocketServer({
+  server: httpServer,
+  path: "/graphql",
 });
 
-async function start() {
-  await server.start();
-  server.applyMiddleware({ app });
+// Attach subscriptions to WebSocket
+useServer({ schema }, wsServer);
 
-  mongoose
-    .connect(process.env.MONGO_URI)
-    .then(() => {
-      console.log("MongoDB connected");
-      app.listen(process.env.PORT, () =>
-        console.log(`Server ready at http://localhost:${process.env.PORT}${server.graphqlPath}`)
-      );
-    })
-    .catch((err) => console.error("MongoDB connection error:", err));
-}
+// Apollo Server (for queries + mutations)
+const apolloServer = new ApolloServer({ schema });
+await apolloServer.start();
+apolloServer.applyMiddleware({ app });
 
-start();
+// Connect to MongoDB and Start the Server
+mongoose.connect(process.env.MONGO_URI).then(() => {
+  console.log("MongoDB connected");
+
+  httpServer.listen(PORT, () => {
+    console.log(`GraphQL ready at http://localhost:${PORT}/graphql`);
+    console.log(`Subscriptions ready at ws://localhost:${PORT}/graphql`);
+  });
+});

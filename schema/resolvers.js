@@ -1,41 +1,24 @@
-// import { users } from "../data/users.js";
-
-// let userList = [...users];
-
-// export const resolvers = {
-//   Query: {
-//     users: () => userList,
-//     user: (_, { id }) => userList.find((u) => u.id === id),
-//   },
-//   Mutation: {
-//     addUser: (_, { name, age }) => {
-//       const newUser = {
-//         id: String(userList.length + 1),
-//         name,
-//         age,
-//       };
-//       userList.push(newUser);
-//       return newUser;
-//     },
-//   },
-// };
-
+import { PubSub } from "graphql-subscriptions";
 import { User } from "../models/User.js";
+
+const pubsub = new PubSub();
+const USER_ADDED = "USER_ADDED";
 
 export const resolvers = {
   Query: {
     users: async () => await User.find(),
-    user: async (_, { id }) => await User.findById(id),
   },
   Mutation: {
     addUser: async (_, { name, age }) => {
       const user = new User({ name, age });
       await user.save();
+      pubsub.publish(USER_ADDED, { userAdded: user });
       return user;
     },
-    deleteUser: async (_, { id }) => {
-      const deletedUser = await User.findByIdAndDelete(id);
-      return deletedUser;
+  },
+  Subscription: {
+    userAdded: {
+      subscribe: () => pubsub.asyncIterator([USER_ADDED]),
     },
   },
 };

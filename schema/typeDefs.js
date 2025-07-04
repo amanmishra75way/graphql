@@ -16,4 +16,8 @@ export const typeDefs = gql`
     addUser(name: String!, age: Int!): User
     deleteUser(id: ID!): User
   }
+
+  type Subscription {
+    userAdded: User
+  }
 `;
